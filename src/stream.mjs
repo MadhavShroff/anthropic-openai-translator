@@ -98,7 +98,20 @@ export function openaiToAnthropicStream (requested) {
   const stream = new Transform({
     transform (chunk, _enc, cb) {
       try {
-        tail += chunk.toString('utf8')
+        const frame = tail + chunk.toString('utf8')
+        if (!tail.length && frame.length > 8 && frame.startsWith('data: ') && frame.endsWith('\n\n') && frame.indexOf('\n', 6) === frame.length - 2) {
+          const payload = frame.slice(6, -2)
+          if (payload === '[DONE]') {
+            finish((c) => this.push(c))
+          } else {
+            let d
+            try { d = JSON.parse(payload) } catch { d = null }
+            if (d) handleChunk(d)
+          }
+          cb()
+          return
+        }
+        tail = frame
         let idx
         while ((idx = tail.indexOf('\n')) >= 0) {
           const line = tail.slice(0, idx)
