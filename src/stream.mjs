@@ -39,7 +39,7 @@ export function openaiToAnthropicStream (requested) {
     const delta = ch.delta || {}
     if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
       openBlockAs('thinking', { thinking: '' })
-      out(`event: content_block_delta\ndata: ${JSON.stringify({ type: 'content_block_delta', index: nextIndex - 1, delta: { type: 'thinking_delta', thinking: delta.reasoning_content } })}\n\n`)
+      out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${nextIndex - 1},"delta":{"type":"thinking_delta","thinking":${JSON.stringify(delta.reasoning_content)}}}\n\n`)
     }
     if (typeof delta.content === 'string' && delta.content) {
       openBlockAs('text', { text: '' })
@@ -57,7 +57,7 @@ export function openaiToAnthropicStream (requested) {
         openBlock = 'tool'
       }
       if (tool && typeof f.function?.arguments === 'string' && f.function.arguments) {
-        out(`event: content_block_delta\ndata: ${JSON.stringify({ type: 'content_block_delta', index: tool.blockIndex, delta: { type: 'input_json_delta', partial_json: f.function.arguments } })}\n\n`)
+        out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${tool.blockIndex},"delta":{"type":"input_json_delta","partial_json":${JSON.stringify(f.function.arguments)}}}\n\n`)
       }
     }
     if (ch.finish_reason) stopReason = stopReasonFromFinish(ch.finish_reason)
