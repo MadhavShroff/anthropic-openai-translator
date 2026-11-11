@@ -37,6 +37,11 @@ export function openaiToAnthropicStream (requested) {
       return
     }
     const delta = ch.delta || {}
+    if (openBlock === 'text' && typeof delta.content === 'string' && delta.content && !delta.reasoning_content && !delta.tool_calls) {
+      out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":${JSON.stringify(delta.content)}}}\n\n`)
+      if (ch.finish_reason) stopReason = stopReasonFromFinish(ch.finish_reason)
+      return
+    }
     if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
       openBlockAs('thinking', { thinking: '' })
       out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${nextIndex - 1},"delta":{"type":"thinking_delta","thinking":${JSON.stringify(delta.reasoning_content)}}}\n\n`)
