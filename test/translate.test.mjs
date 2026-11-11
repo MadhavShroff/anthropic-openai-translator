@@ -10,7 +10,14 @@ import {
   UnsupportedContentError
 } from '../src/index.mjs'
 
+import { execFileSync } from 'node:child_process'
+
 const MODEL = 'anthropic-morph-kimik31'
+const originalStream = execFileSync('git', ['show', '15e3d63:src/stream.mjs'], {
+  cwd: new URL('..', import.meta.url),
+  encoding: 'utf8'
+}).replace("from './response.mjs'", `from '${new URL('../src/response.mjs', import.meta.url).href}'`)
+const { openaiToAnthropicStream: baselineStream } = await import(`data:text/javascript;base64,${Buffer.from(originalStream).toString('base64')}`)
 
 function request (extra = {}) {
   return anthropicToOpenAIChat({
@@ -27,7 +34,7 @@ function encode (chunks, done = true) {
   return frames
 }
 
-async function collectStream (chunks, { done = true, requested = MODEL, split = false } = {}) {
+async function collectStream (chunks, { done = true, requested = MODEL, split = false, converter = openaiToAnthropicStream } = {}) {
   const frames = encode(chunks, done)
   let input
   if (split && frames.length > 1) {
@@ -35,7 +42,7 @@ async function collectStream (chunks, { done = true, requested = MODEL, split = 
   } else {
     input = frames
   }
-  const transform = openaiToAnthropicStream(requested)
+  const transform = converter(requested)
   let text = ''
   transform.on('data', chunk => { text += chunk.toString('utf8') })
   Readable.from(input).pipe(transform)
@@ -277,6 +284,34 @@ test('whole frames and split UTF-8 preserve every delta', async () => {
       { id: 'chatcmpl-unicode', choices: [], usage: { prompt_tokens: 3, completion_tokens: 2 } }
     ], { split })
     assert.equal(events.filter(e => e.delta?.type === 'text_delta').map(e => e.delta.text).join(''), 'CAFÉ 你好. Next.')
+  }
+})
+
+test('incremental SSE syntax stays byte-identical to the baseline', async () => {
+  const chunks = [
+    { id: 'chatcmpl-crlf', choices: [{ delta: { reasoning_content: 'think', content: 'text' }, finish_reason: null }] },
+    { id: 'chatcmpl-crlf', choices: [{ delta: { tool_calls: [{ index: 1, id: 'a', function: { name: 't', arguments: '{"x":' } }] }, finish_reason: null, finish_reason: null }] },
+    { id: 'chatcmpl-crlf', choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: 'true}' } }] }, finish_reason: 'tool_calls' }] },
+    { id: 'chatcmpl-crlf', choices: [], usage: { prompt_tokens: 1, completion_tokens: 2 } }
+  ]
+  for (const converter of [baselineStream, openaiToAnthropicStream]) {
+    const frames = chunks.map(chunk => `event: message\r\nid: 1\r\ndata:\t${JSON.stringify(chunk)}\t\r\n\r\n`).join('') +
+      'data:\r\n\r\nnot-data\r\n\r\ndata: {invalid}\r\n\r\ndata: [DONE]\r\n\r\n'
+    const input = [frames.slice(0, 11), frames.slice(11, 55), frames.slice(55)]
+    const stream = converter(MODEL)
+    let text = ''
+    stream.on('data', chunk => { text += chunk.toString('utf8') })
+    Readable.from(input).pipe(stream)
+    await once(stream, 'end')
+    const events = []
+    for (const frame of text.split('\n\n')) {
+      if (!frame) continue
+      const match = /^event: ([^\n]+)\ndata: (.+)$/s.exec(frame)
+      assert.ok(match, frame)
+      events.push(JSON.parse(match[2]))
+    }
+    if (converter === baselineStream) var baselineEvents = events
+    else assert.deepEqual(events, baselineEvents)
   }
 })
 

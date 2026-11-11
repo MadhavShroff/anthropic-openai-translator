@@ -86,7 +86,7 @@ export function openaiToAnthropicStream (requested) {
         tail += chunk.toString('utf8')
         let idx
         while ((idx = tail.indexOf('\n')) >= 0) {
-          const line = tail.slice(0, idx).replace(/\r$/, '')
+          const line = tail.slice(0, idx)
           tail = tail.slice(idx + 1)
           if (!line.startsWith('data:')) continue
           const payload = line.slice(5).trim()
