@@ -9,16 +9,8 @@ export function openaiToAnthropicStream (requested) {
   let stopReason = 'end_turn'
   let usage = null
   const tools = []
-  const buf = new Array(16)
-  let used = 0
+  let out
   let tail = ''
-  const out = (chunk) => { buf[used++] = chunk }
-  const flush = () => {
-    if (!used) return null
-    const b = buf.slice(0, used)
-    used = 0
-    return b
-  }
 
   const closeOpen = () => {
     if (openBlock == null) return
@@ -75,8 +67,6 @@ export function openaiToAnthropicStream (requested) {
     if (!started || finished) return
     finished = true
     closeOpen()
-    const pending = flush()
-    if (pending) for (const c of pending) push(c)
     const u = {
       output_tokens: usage?.completion_tokens ?? 0,
       input_tokens: usage?.prompt_tokens ?? 0,
@@ -86,7 +76,7 @@ export function openaiToAnthropicStream (requested) {
     push('event: message_stop\ndata: {"type":"message_stop"}\n\n')
   }
 
-  return new Transform({
+  const stream = new Transform({
     transform (chunk, _enc, cb) {
       try {
         tail += chunk.toString('utf8')
@@ -96,14 +86,12 @@ export function openaiToAnthropicStream (requested) {
           tail = tail.slice(idx + 1)
           if (!line.startsWith('data:')) continue
           const payload = line.slice(5).trim()
-          if (payload === '[DONE]') { finish(out); break }
+          if (payload === '[DONE]') { finish((c) => this.push(c)); break }
           if (!payload) continue
           let d
           try { d = JSON.parse(payload) } catch { continue }
           handleChunk(d)
         }
-        const b = flush()
-        if (b) for (const c of b) this.push(c)
         cb()
       } catch (e) {
         cb(e)
@@ -114,4 +102,6 @@ export function openaiToAnthropicStream (requested) {
       cb()
     }
   })
+  out = stream.push.bind(stream)
+  return stream
 }

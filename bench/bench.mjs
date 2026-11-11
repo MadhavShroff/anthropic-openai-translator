@@ -4,7 +4,6 @@ import { anthropicToOpenAIChat, openaiToAnthropicJson, openaiToAnthropicStream }
 const converter = process.env.BENCH_STREAM_URL ? await import(process.env.BENCH_STREAM_URL) : null
 const streamFactory = converter?.openaiToAnthropicStream || openaiToAnthropicStream
 
-
 const MODEL = 'anthropic-morph-kimik31'
 const SIZES = { '1k': 4000, '100k': 400000, '1M': 4000000 }
 const TYPES = ['mixed', 'text', 'thinking', 'tools']
@@ -59,7 +58,7 @@ function makeFixture (size) {
   return { body, parsed }
 }
 
-function makeStream (size, type, count) {
+function makeStream (size, type, count, fragmented = false) {
   const target = SIZES[size]
   const text = repeatedText(target, 'Stream payload: café 你好.\n')
   const perChunk = Math.ceil(text.length / count)
@@ -80,8 +79,8 @@ function makeStream (size, type, count) {
   const encoded = frames.map(frame => `data: ${typeof frame === 'string' ? frame : JSON.stringify(frame)}\n\n`).join('')
   const input = Buffer.from(encoded)
   const chunks = []
-  // Divide the encoded input to exercise the incremental UTF-8 decoder.
-  const perBuffer = Math.ceil(input.length / (count + 2))
+  // Fragmented mode splits Unicode code units and multibyte sequences.
+  const perBuffer = fragmented ? 17 : Math.ceil(input.length / (count + 2))
   for (let offset = 0; offset < input.length; offset += perBuffer) chunks.push(input.subarray(offset, offset + perBuffer))
   return { chunks, bytes: input.length }
 }
@@ -101,19 +100,21 @@ function consume (chunks) {
 const results = []
 for (const size of Object.keys(SIZES)) {
   const { body, parsed } = makeFixture(size)
-  if (deepEqualSafe(anthropicToOpenAIChat(body)) == null) throw new Error('Invalid request fixture')
+  const request = anthropicToOpenAIChat(body)
+  if (request.messages.length !== 4 || request.messages[2].tool_calls[0].function.arguments !== JSON.stringify(body.messages[1].content[1].input)) throw new Error('Invalid request conversion')
+  if (openaiToAnthropicJson(parsed, MODEL).content.length !== 3) throw new Error('Invalid response conversion')
   results.push({ operation: 'anthropic_to_openai_json', size, ...await measure(() => anthropicToOpenAIChat(body)) })
   results.push({ operation: 'openai_to_anthropic_json', size, ...await measure(() => openaiToAnthropicJson(parsed, MODEL)) })
   for (const type of TYPES) {
     const count = CHUNKS[Object.keys(SIZES).indexOf(size)]
-    const { chunks, bytes } = makeStream(size, type, count)
-    results.push({ operation: `openai_to_anthropic_stream_${type}_${count}`, size, bytes, ...await measure(() => consume(chunks)) })
+    const fragmented = process.env.BENCH_FRAGMENTED === '1'
+    const { chunks, bytes } = makeStream(size, type, count, fragmented)
+    results.push({ operation: `openai_to_anthropic_stream_${type}_${count}${fragmented ? '_fragmented' : ''}`, size, bytes, ...await measure(() => consume(chunks)) })
   }
   const row = results.at(-1)
   console.error(`${size}: ${results.length}/${Object.keys(SIZES).length * 6} cases; last median ${row.medianMs.toFixed(3)} ms`)
 }
 
-function deepEqualSafe (value) { return JSON.stringify(value) }
 const result = { runtime: process.version, platform: `${process.platform}/${process.arch}`, iterations, warmups, argv: process.argv.slice(1), results }
 if (process.env.BENCH_FORMAT === 'json') console.log(JSON.stringify(result, null, 2))
 else {
