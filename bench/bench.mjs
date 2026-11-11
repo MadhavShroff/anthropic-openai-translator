@@ -1,6 +1,10 @@
 import { performance } from 'node:perf_hooks'
 import { anthropicToOpenAIChat, openaiToAnthropicJson, openaiToAnthropicStream } from '../src/index.mjs'
 
+const converter = process.env.BENCH_STREAM_URL ? await import(process.env.BENCH_STREAM_URL) : null
+const streamFactory = converter?.openaiToAnthropicStream || openaiToAnthropicStream
+
+
 const MODEL = 'anthropic-morph-kimik31'
 const SIZES = { '1k': 4000, '100k': 400000, '1M': 4000000 }
 const TYPES = ['mixed', 'text', 'thinking', 'tools']
@@ -84,7 +88,7 @@ function makeStream (size, type, count) {
 
 function consume (chunks) {
   return new Promise((resolve, reject) => {
-    const stream = openaiToAnthropicStream(MODEL)
+    const stream = streamFactory(MODEL)
     let length = 0
     stream.on('data', chunk => { length += chunk.length })
     stream.once('error', reject)
