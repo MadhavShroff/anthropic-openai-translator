@@ -1,7 +1,7 @@
 {
   "name": "anthropic-openai-translator",
   "version": "0.1.0",
-  "description": "Pure Anthropic Messages and OpenAI Chat Completions translation.",
+  "description": "Translate Anthropic Messages requests to OpenAI Chat Completions, and OpenAI JSON responses and SSE streams back to Anthropic formats. Zero dependencies.",
   "type": "module",
   "main": "./src/index.mjs",
   "exports": "./src/index.mjs",
@@ -9,17 +9,31 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/translate.test.mjs"
+    "test": "node --test"
   },
-  "private": false,
-  "license": "MIT",
+  "keywords": [
+    "anthropic",
+    "openai",
+    "claude",
+    "translate",
+    "translator",
+    "messages-api",
+    "chat-completions",
+    "sse",
+    "streaming",
+    "proxy",
+    "adapter",
+    "llm",
+    "esm",
+    "zero-dependency"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MadhavShroff/anthropic-openai-translator.git"
   },
-  "files": [
-    "src/",
-    "README.md",
-    "LICENSE"
-  ]
+  "bugs": {
+    "url": "https://github.com/MadhavShroff/anthropic-openai-translator/issues"
+  },
+  "homepage": "https://github.com/MadhavShroff/anthropic-openai-translator#readme",
+  "license": "MIT"
 }
