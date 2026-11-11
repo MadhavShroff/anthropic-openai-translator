@@ -12,9 +12,13 @@ export function anthropicToOpenAIChat (body) {
       ? m.content
       : [{ type: 'text', text: String(m.content ?? '') }]
     if (m.role === 'assistant') {
-      const text = blocks.filter(b => b.type === 'text').map(b => b.text || '').join('\n')
-      const toolUses = blocks.filter(b => b.type === 'tool_use')
-      const msg = { role: 'assistant', content: text || null }
+      const text = []
+      const toolUses = []
+      for (const b of blocks) {
+        if (b.type === 'text') text.push(b.text || '')
+        else if (b.type === 'tool_use') toolUses.push(b)
+      }
+      const msg = { role: 'assistant', content: text.length ? text.join('\n') : null }
       if (toolUses.length) {
         msg.tool_calls = toolUses.map(t => ({
           id: t.id,
