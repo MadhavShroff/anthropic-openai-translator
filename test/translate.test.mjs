@@ -269,6 +269,17 @@ test('new non-stream response with reasoning text and tool_calls together', () =
   assert.deepEqual(message.usage, { input_tokens: 25, output_tokens: 13, cache_read_input_tokens: 5 })
 })
 
+test('whole frames and split UTF-8 preserve every delta', async () => {
+  for (const split of [false, true]) {
+    const events = await collectStream([
+      { id: 'chatcmpl-unicode', choices: [{ delta: { content: 'CAFÉ 你好.' }, finish_reason: null }] },
+      { id: 'chatcmpl-unicode', choices: [{ delta: { content: ' Next.' }, finish_reason: 'stop' }] },
+      { id: 'chatcmpl-unicode', choices: [], usage: { prompt_tokens: 3, completion_tokens: 2 } }
+    ], { split })
+    assert.equal(events.filter(e => e.delta?.type === 'text_delta').map(e => e.delta.text).join(''), 'CAFÉ 你好. Next.')
+  }
+})
+
 test('new effort table boundary values 512 2048 8192 16384 32768 32769', async t => {
   const cases = [
     [512, 'minimal'], [2048, 'low'], [8192, 'medium'],
