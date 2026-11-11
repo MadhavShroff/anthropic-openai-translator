@@ -10,14 +10,11 @@ import {
   UnsupportedContentError
 } from '../src/index.mjs'
 
-import { execFileSync } from 'node:child_process'
+// The pre-optimization stream converter, kept as a fixture so the byte-identity
+// tests below run on any clone (no git history needed).
+import { openaiToAnthropicStream as baselineStream } from './fixtures/stream-baseline.mjs'
 
 const MODEL = 'anthropic-morph-kimik31'
-const originalStream = execFileSync('git', ['show', '15e3d63:src/stream.mjs'], {
-  cwd: new URL('..', import.meta.url),
-  encoding: 'utf8'
-}).replace("from './response.mjs'", `from '${new URL('../src/response.mjs', import.meta.url).href}'`)
-const { openaiToAnthropicStream: baselineStream } = await import(`data:text/javascript;base64,${Buffer.from(originalStream).toString('base64')}`)
 
 function request (extra = {}) {
   return anthropicToOpenAIChat({
