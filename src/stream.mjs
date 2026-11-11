@@ -45,7 +45,7 @@ export function openaiToAnthropicStream (requested) {
     }
     if (typeof delta.content === 'string' && delta.content) {
       openBlockAs('text', { text: '' })
-      out(`event: content_block_delta\ndata: ${JSON.stringify({ type: 'content_block_delta', index: nextIndex - 1, delta: { type: 'text_delta', text: delta.content } })}\n\n`)
+      out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${nextIndex - 1},"delta":{"type":"text_delta","text":${JSON.stringify(delta.content)}}}\n\n`)
     }
     for (const f of delta.tool_calls || []) {
       let tool = tools.find(t => t.index === f.index)
