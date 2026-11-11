@@ -287,6 +287,18 @@ test('whole frames and split UTF-8 preserve every delta', async () => {
   }
 })
 
+test('content-only fast paths preserve null-field transitions and escaping', async () => {
+  const chunks = [
+    { id: 'chatcmpl-fields', choices: [{ delta: { content: null, reasoning_content: 'think' }, finish_reason: null }] },
+    { id: 'chatcmpl-fields', choices: [{ delta: { content: 'text \"\\' }, finish_reason: 'stop' }] }
+  ]
+  for (const split of [false, true]) {
+    const before = await collectStream(chunks, { split, converter: baselineStream })
+    const after = await collectStream(chunks, { split })
+    assert.deepEqual(after, before)
+  }
+})
+
 test('incremental SSE syntax stays byte-identical to the baseline', async () => {
   const chunks = [
     { id: 'chatcmpl-crlf', choices: [{ delta: { reasoning_content: 'think', content: 'text' }, finish_reason: null }] },

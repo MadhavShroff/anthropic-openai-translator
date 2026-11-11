@@ -37,8 +37,13 @@ export function openaiToAnthropicStream (requested) {
       return
     }
     const delta = ch.delta || {}
-    if (openBlock === 'text' && typeof delta.content === 'string' && delta.content && !delta.reasoning_content && !delta.tool_calls) {
+    if (openBlock === 'text' && typeof delta.content === 'string' && delta.content && delta.reasoning_content === undefined && delta.tool_calls === undefined) {
       out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":${JSON.stringify(delta.content)}}}\n\n`)
+      if (ch.finish_reason) stopReason = stopReasonFromFinish(ch.finish_reason)
+      return
+    }
+    if (openBlock === 'thinking' && typeof delta.reasoning_content === 'string' && delta.reasoning_content && delta.content === undefined && delta.tool_calls === undefined) {
+      out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":${JSON.stringify(delta.reasoning_content)}}}\n\n`)
       if (ch.finish_reason) stopReason = stopReasonFromFinish(ch.finish_reason)
       return
     }
@@ -50,7 +55,16 @@ export function openaiToAnthropicStream (requested) {
       openBlockAs('text', { text: '' })
       out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${nextIndex - 1},"delta":{"type":"text_delta","text":${JSON.stringify(delta.content)}}}\n\n`)
     }
-    for (const f of delta.tool_calls || []) {
+    const calls = delta.tool_calls
+    if (calls?.length === 1 && calls[0].index === 0 && calls[0].id === undefined &&
+        typeof calls[0].function?.arguments === 'string' && calls[0].function.arguments &&
+        tools.length === 1 && tools[0].index === 0 &&
+        delta.reasoning_content === undefined && delta.content === undefined) {
+      out(`event: content_block_delta\ndata: {"type":"content_block_delta","index":${tools[0].blockIndex},"delta":{"type":"input_json_delta","partial_json":${JSON.stringify(calls[0].function.arguments)}}}\n\n`)
+      if (ch.finish_reason) stopReason = stopReasonFromFinish(ch.finish_reason)
+      return
+    }
+    for (const f of calls || []) {
       let tool = tools.find(t => t.index === f.index)
       if (f.id && !tool) {
         closeOpen()
