@@ -9,10 +9,16 @@ export function openaiToAnthropicStream (requested) {
   let stopReason = 'end_turn'
   let usage = null
   const tools = []
-  const buf = []
+  const buf = new Array(16)
+  let used = 0
   let tail = ''
-  const out = (chunk) => buf.push(chunk)
-  const flush = () => { const b = buf.splice(0); return b.length ? b : null }
+  const out = (chunk) => { buf[used++] = chunk }
+  const flush = () => {
+    if (!used) return null
+    const b = buf.slice(0, used)
+    used = 0
+    return b
+  }
 
   const closeOpen = () => {
     if (openBlock == null) return
@@ -90,7 +96,7 @@ export function openaiToAnthropicStream (requested) {
           tail = tail.slice(idx + 1)
           if (!line.startsWith('data:')) continue
           const payload = line.slice(5).trim()
-          if (payload === '[DONE]') { finish((c) => out(c)); break }
+          if (payload === '[DONE]') { finish(out); break }
           if (!payload) continue
           let d
           try { d = JSON.parse(payload) } catch { continue }
